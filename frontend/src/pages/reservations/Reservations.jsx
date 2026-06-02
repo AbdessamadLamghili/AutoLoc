@@ -172,8 +172,13 @@ function ReservationForm({ open, onClose }) {
   const vehiculeId = watch('vehicule_id')
   const vehicule   = vehicules.data?.find(v => v.id === +vehiculeId)
 
+  const remise     = watch('remise')
   const jours      = dateDebut && dateFin ? Math.max(1, Math.ceil((new Date(dateFin) - new Date(dateDebut)) / 86400000)) : 0
-  const prixEstime = vehicule && jours > 0 ? parseFloat(vehicule.tarif_journalier) * jours : 0
+  const tarifJour  = vehicule ? parseFloat(vehicule.tarif_journalier) || 0 : 0
+  const prixBase   = tarifJour * (jours || 0)
+  const remiseVal  = parseFloat(remise) || 0
+  const prixTotal  = Math.max(0, prixBase - remiseVal)
+  const remiseTropGrande = remiseVal > 0 && remiseVal > prixBase && prixBase > 0
 
   const mutation = useMutation({
     mutationFn: (data) => api.post('/reservations', data),
@@ -200,7 +205,7 @@ function ReservationForm({ open, onClose }) {
         <Select label="Véhicule *" {...register('vehicule_id', { required: true, valueAsNumber: true })}>
           <option value="">Sélectionner un véhicule</option>
           {vehicules.data?.map(v => (
-            <option key={v.id} value={v.id}>{v.marque} {v.modele} ({v.immatriculation}) — {parseFloat(v.tarif_journalier).toLocaleString('fr-MA')} MAD/j</option>
+            <option key={v.id} value={v.id}>{v.marque} {v.modele} ({v.immatriculation}) — {(parseFloat(v.tarif_journalier) || 0).toLocaleString('fr-MA')} MAD/j</option>
           ))}
         </Select>
 
@@ -211,7 +216,13 @@ function ReservationForm({ open, onClose }) {
 
         <div className="grid grid-cols-2 gap-4">
           <Input label="Lieu de prise en charge" {...register('lieu_prise_en_charge')} />
-          <Input label="Remise (MAD)" type="number" min="0" {...register('remise', { valueAsNumber: true })} />
+          <Input
+            label="Remise (MAD)"
+            type="number"
+            min="0"
+            max={prixBase > 0 ? prixBase : undefined}
+            {...register('remise', { valueAsNumber: true })}
+          />
         </div>
 
         <Select label="Mode de paiement" {...register('mode_paiement')}>
@@ -219,15 +230,33 @@ function ReservationForm({ open, onClose }) {
           {['carte','especes','virement','cheque'].map(m => <option key={m} value={m} className="capitalize">{m}</option>)}
         </Select>
 
-        {prixEstime > 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm">
-            <p className="text-blue-700 font-medium">Estimation : {jours} jour(s) × {parseFloat(vehicule?.tarif_journalier).toLocaleString('fr-MA')} MAD = <span className="text-lg font-bold">{prixEstime.toLocaleString('fr-MA')} MAD</span></p>
+        {vehicule && jours > 0 && (
+          <div className={`rounded-xl p-4 text-sm border ${remiseTropGrande ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200'}`}>
+            <div className={`space-y-1 ${remiseTropGrande ? 'text-red-700' : 'text-blue-700'}`}>
+              <div className="flex justify-between">
+                <span>{jours} jour(s) × {tarifJour.toLocaleString('fr-MA')} MAD/j</span>
+                <span className="font-medium">{prixBase.toLocaleString('fr-MA')} MAD</span>
+              </div>
+              {remiseVal > 0 && (
+                <div className="flex justify-between text-orange-600">
+                  <span>Remise</span>
+                  <span>− {remiseVal.toLocaleString('fr-MA')} MAD</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t pt-1 font-bold text-base">
+                <span>Prix total</span>
+                <span>{prixTotal.toLocaleString('fr-MA')} MAD</span>
+              </div>
+              {remiseTropGrande && (
+                <p className="text-xs text-red-600 mt-1">⚠ La remise dépasse le prix de base ({prixBase.toLocaleString('fr-MA')} MAD)</p>
+              )}
+            </div>
           </div>
         )}
 
         <div className="flex justify-end gap-3">
           <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
-          <Button type="submit" loading={isSubmitting || mutation.isPending}>Créer</Button>
+          <Button type="submit" disabled={remiseTropGrande} loading={isSubmitting || mutation.isPending}>Créer</Button>
         </div>
       </form>
     </Modal>

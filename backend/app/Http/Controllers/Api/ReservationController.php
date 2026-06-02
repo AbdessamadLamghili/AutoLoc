@@ -73,7 +73,13 @@ class ReservationController extends Controller
         $fin        = \Carbon\Carbon::parse($validated['date_fin']);
         $jours      = max(1, (int) $debut->diffInDays($fin));
         $prixBase   = (float) $vehicule->tarif_journalier * $jours;
-        $prixTotal  = $prixBase - (float) ($validated['remise'] ?? 0);
+        $remise     = (float) ($validated['remise'] ?? 0);
+
+        if ($remise > $prixBase) {
+            return response()->json(['message' => "La remise ({$remise} MAD) ne peut pas dépasser le prix de base ({$prixBase} MAD)."], 422);
+        }
+
+        $prixTotal = $prixBase - $remise;
 
         $reservation = Reservation::create([
             ...$validated,

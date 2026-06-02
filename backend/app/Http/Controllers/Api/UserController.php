@@ -6,17 +6,21 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class UserController extends Controller
+class UserController extends Controller implements HasMiddleware
 {
-    public function __construct()
+    public static function middleware(): array
     {
-        $this->middleware(function ($request, $next) {
-            if (!auth()->user()?->isAdmin()) {
-                return response()->json(['message' => 'Accès réservé aux administrateurs.'], 403);
-            }
-            return $next($request);
-        });
+        return [
+            new Middleware(function ($request, $next) {
+                if (!auth()->user()?->isAdmin()) {
+                    return response()->json(['message' => 'Accès réservé aux administrateurs.'], 403);
+                }
+                return $next($request);
+            }),
+        ];
     }
 
     public function index(Request $request): JsonResponse
