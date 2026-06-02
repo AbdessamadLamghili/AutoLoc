@@ -93,7 +93,7 @@ export default function Reservations() {
                 <Td className="text-xs text-gray-500">
                   {format(new Date(r.date_debut), 'dd/MM/yy', { locale: fr })} → {format(new Date(r.date_fin), 'dd/MM/yy', { locale: fr })}
                 </Td>
-                <Td className="font-semibold">{r.prix_total?.toLocaleString('fr-MA')} MAD</Td>
+                <Td className="font-semibold">{parseFloat(r.prix_total).toLocaleString('fr-MA')} MAD</Td>
                 <Td><Badge color={statutColor(r.statut)}>{statutLabel(r.statut)}</Badge></Td>
                 <Td>
                   <div className="flex gap-1">
@@ -138,8 +138,8 @@ function ReservationDetail({ r }) {
           ['Date début', format(new Date(r.date_debut), 'dd/MM/yyyy HH:mm', { locale: fr })],
           ['Date fin', format(new Date(r.date_fin), 'dd/MM/yyyy HH:mm', { locale: fr })],
           ['Durée', `${r.date_debut && r.date_fin ? Math.max(1, Math.ceil((new Date(r.date_fin) - new Date(r.date_debut)) / 86400000)) : '—'} jour(s)`],
-          ['Prix total', `${r.prix_total?.toLocaleString('fr-MA')} MAD`],
-          ['Remise', r.remise > 0 ? `${r.remise?.toLocaleString('fr-MA')} MAD` : '—'],
+          ['Prix total', `${parseFloat(r.prix_total).toLocaleString('fr-MA')} MAD`],
+          ['Remise', r.remise > 0 ? `${parseFloat(r.remise).toLocaleString('fr-MA')} MAD` : '—'],
           ['Lieu de prise en charge', r.lieu_prise_en_charge ?? '—'],
           ['Mode de paiement', r.mode_paiement ?? '—'],
           ['Source', r.source],
@@ -154,18 +154,26 @@ function ReservationDetail({ r }) {
 
 function ReservationForm({ open, onClose }) {
   const qc = useQueryClient()
-  const { register, handleSubmit, reset, watch, formState: { isSubmitting } } = useForm()
+  const { user, isClient, isStaff } = useAuth()
+  const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm()
 
-  const clients  = useQuery({ queryKey: ['clients-list'],  queryFn: () => api.get('/clients', { params: { per_page: 100 } }).then(r => r.data.data), enabled: open })
+  const clients  = useQuery({ queryKey: ['clients-list'],  queryFn: () => api.get('/clients', { params: { per_page: 100 } }).then(r => r.data.data), enabled: open && isStaff })
   const vehicules = useQuery({ queryKey: ['vehicules-list'], queryFn: () => api.get('/vehicules', { params: { statut: 'disponible', per_page: 100 } }).then(r => r.data.data), enabled: open })
 
-  const dateDebut = watch('date_debut')
-  const dateFin   = watch('date_fin')
+  // For client users, auto-set their own client_id
+  useEffect(() => {
+    if (open && isClient && user?.client?.id) {
+      setValue('client_id', user.client.id)
+    }
+  }, [open, isClient, user, setValue])
+
+  const dateDebut  = watch('date_debut')
+  const dateFin    = watch('date_fin')
   const vehiculeId = watch('vehicule_id')
-  const vehicule = vehicules.data?.find(v => v.id === +vehiculeId)
+  const vehicule   = vehicules.data?.find(v => v.id === +vehiculeId)
 
   const jours      = dateDebut && dateFin ? Math.max(1, Math.ceil((new Date(dateFin) - new Date(dateDebut)) / 86400000)) : 0
-  const prixEstime = vehicule && jours > 0 ? vehicule.tarif_journalier * jours : 0
+  const prixEstime = vehicule && jours > 0 ? parseFloat(vehicule.tarif_journalier) * jours : 0
 
   const mutation = useMutation({
     mutationFn: (data) => api.post('/reservations', data),
@@ -180,15 +188,19 @@ function ReservationForm({ open, onClose }) {
   return (
     <Modal open={open} onClose={onClose} title="Nouvelle réservation" size="lg">
       <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-4">
-        <Select label="Client *" {...register('client_id', { required: true, valueAsNumber: true })}>
-          <option value="">Sélectionner un client</option>
-          {clients.data?.map(c => <option key={c.id} value={c.id}>{c.user?.prenom} {c.user?.name}</option>)}
-        </Select>
+        {isStaff ? (
+          <Select label="Client *" {...register('client_id', { required: true, valueAsNumber: true })}>
+            <option value="">Sélectionner un client</option>
+            {clients.data?.map(c => <option key={c.id} value={c.id}>{c.user?.prenom} {c.user?.name}</option>)}
+          </Select>
+        ) : (
+          <input type="hidden" {...register('client_id', { valueAsNumber: true })} />
+        )}
 
-        <Select label="Véhicule *" {...register('vehicule_id', { required: true })}>
+        <Select label="Véhicule *" {...register('vehicule_id', { required: true, valueAsNumber: true })}>
           <option value="">Sélectionner un véhicule</option>
           {vehicules.data?.map(v => (
-            <option key={v.id} value={v.id}>{v.marque} {v.modele} ({v.immatriculation}) — {v.tarif_journalier?.toLocaleString('fr-MA')} MAD/j</option>
+            <option key={v.id} value={v.id}>{v.marque} {v.modele} ({v.immatriculation}) — {parseFloat(v.tarif_journalier).toLocaleString('fr-MA')} MAD/j</option>
           ))}
         </Select>
 
@@ -209,7 +221,7 @@ function ReservationForm({ open, onClose }) {
 
         {prixEstime > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm">
-            <p className="text-blue-700 font-medium">Estimation : {jours} jour(s) × {vehicule?.tarif_journalier?.toLocaleString('fr-MA')} MAD = <span className="text-lg font-bold">{prixEstime.toLocaleString('fr-MA')} MAD</span></p>
+            <p className="text-blue-700 font-medium">Estimation : {jours} jour(s) × {parseFloat(vehicule?.tarif_journalier).toLocaleString('fr-MA')} MAD = <span className="text-lg font-bold">{prixEstime.toLocaleString('fr-MA')} MAD</span></p>
           </div>
         )}
 

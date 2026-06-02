@@ -223,7 +223,7 @@ class MarocVehiculesSeeder extends Seeder
         ];
 
         foreach ($parc as $v) {
-            Vehicule::firstOrCreate(['immatriculation' => $v['immatriculation']], [
+            Vehicule::updateOrCreate(['immatriculation' => $v['immatriculation']], [
                 'marque'                          => $v['marque'],
                 'modele'                          => $v['modele'],
                 'annee'                           => $v['annee'],

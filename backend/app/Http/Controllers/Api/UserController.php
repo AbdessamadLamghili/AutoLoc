@@ -9,6 +9,16 @@ use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            if (!auth()->user()?->isAdmin()) {
+                return response()->json(['message' => 'Accès réservé aux administrateurs.'], 403);
+            }
+            return $next($request);
+        });
+    }
+
     public function index(Request $request): JsonResponse
     {
         $query = User::query();

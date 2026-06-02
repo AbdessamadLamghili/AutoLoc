@@ -55,6 +55,11 @@ class ReservationController extends Controller
             'notes'               => 'nullable|string',
         ]);
 
+        // Force client users to only reserve for themselves
+        if (auth()->user()->isClient()) {
+            $validated['client_id'] = auth()->user()->client->id;
+        }
+
         $vehicule = Vehicule::findOrFail($validated['vehicule_id']);
 
         if (!$vehicule->estDisponible(
@@ -67,8 +72,8 @@ class ReservationController extends Controller
         $debut      = \Carbon\Carbon::parse($validated['date_debut']);
         $fin        = \Carbon\Carbon::parse($validated['date_fin']);
         $jours      = max(1, (int) $debut->diffInDays($fin));
-        $prixBase   = $vehicule->tarif_journalier * $jours;
-        $prixTotal  = $prixBase - ($validated['remise'] ?? 0);
+        $prixBase   = (float) $vehicule->tarif_journalier * $jours;
+        $prixTotal  = $prixBase - (float) ($validated['remise'] ?? 0);
 
         $reservation = Reservation::create([
             ...$validated,

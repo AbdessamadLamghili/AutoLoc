@@ -81,10 +81,8 @@ Route::middleware('auth:api')->group(function () {
     Route::post('maintenances/{maintenance}/terminer', [MaintenanceController::class, 'terminer']);
     Route::apiResource('maintenances', MaintenanceController::class)->except(['destroy']);
 
-    // Gestion utilisateurs (admin seulement)
-    Route::middleware('role:administrateur')->group(function () {
-        Route::apiResource('users', UserController::class);
-    });
+    // Gestion utilisateurs (admin seulement — vérifié dans UserController)
+    Route::apiResource('users', UserController::class);
 
     // Recherche globale
     Route::get('search', SearchController::class);
